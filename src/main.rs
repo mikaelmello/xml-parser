@@ -99,6 +99,19 @@ fn space0<'a>() -> impl Parser<'a, Vec<char>> {
     zero_or_more(whitespace_char())
 }
 
+fn quoted_string<'a>() -> impl Parser<'a, String> {
+    map(
+        right(
+            match_literal("\""),
+            left(
+                zero_or_more(pred(any_char, |c| *c != '"')),
+                match_literal("\""),
+            ),
+        ),
+        |chars| chars.into_iter().collect(),
+    )
+}
+
 fn one_or_more<'a, P, A>(parser: P) -> impl Parser<'a, Vec<A>>
 where
     P: Parser<'a, A>,
@@ -171,7 +184,8 @@ fn main() {
 #[cfg(test)]
 mod test {
     use crate::{
-        any_char, identifier, match_literal, one_or_more, pair, pred, right, zero_or_more, Parser,
+        any_char, identifier, match_literal, one_or_more, pair, pred, quoted_string, right,
+        zero_or_more, Parser,
     };
 
     #[test]
@@ -245,5 +259,13 @@ mod test {
         let parser = pred(any_char, |c| *c == 'o');
         assert_eq!(Ok(("mg", 'o')), parser.parse("omg"));
         assert_eq!(Err("lol"), parser.parse("lol"));
+    }
+
+    #[test]
+    fn quoted_string_parser() {
+        assert_eq!(
+            Ok(("", "Hello Joe!".to_string())),
+            quoted_string().parse("\"Hello Joe!\"")
+        );
     }
 }
