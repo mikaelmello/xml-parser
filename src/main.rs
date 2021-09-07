@@ -49,6 +49,28 @@ fn identifier(input: &str) -> ParseResult<String> {
     Ok((&input[next_index..], matched))
 }
 
+fn any_char(input: &str) -> ParseResult<char> {
+    match input.chars().next() {
+        Some(next) => Ok((&input[next.len_utf8()..], next)),
+        _ => Err(input),
+    }
+}
+
+fn pred<'a, P, A, F>(parser: P, predicate: F) -> impl Parser<'a, A>
+where
+    P: Parser<'a, A>,
+    F: Fn(&A) -> bool,
+{
+    move |input| {
+        if let Ok((next_input, value)) = parser.parse(input) {
+            if predicate(&value) {
+                return Ok((next_input, value));
+            }
+        }
+        Err(input)
+    }
+}
+
 fn zero_or_more<'a, P, A>(parser: P) -> impl Parser<'a, Vec<A>>
 where
     P: Parser<'a, A>,
@@ -136,7 +158,9 @@ fn main() {
 
 #[cfg(test)]
 mod test {
-    use crate::{identifier, match_literal, one_or_more, pair, right, zero_or_more, Parser};
+    use crate::{
+        any_char, identifier, match_literal, one_or_more, pair, pred, right, zero_or_more, Parser,
+    };
 
     #[test]
     fn literal_parser() {
@@ -202,5 +226,12 @@ mod test {
         assert_eq!(Ok(("", vec![(), (), ()])), parser.parse("hahaha"));
         assert_eq!(Ok(("ahah", vec![])), parser.parse("ahah"));
         assert_eq!(Ok(("", vec![])), parser.parse(""));
+    }
+
+    #[test]
+    fn predicate_combinator() {
+        let parser = pred(any_char, |c| *c == 'o');
+        assert_eq!(Ok(("mg", 'o')), parser.parse("omg"));
+        assert_eq!(Err("lol"), parser.parse("lol"));
     }
 }
