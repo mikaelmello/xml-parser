@@ -5,6 +5,21 @@ struct Element {
     children: Vec<Element>,
 }
 
+type ParseResult<'a, Output> = Result<(&'a str, Output), &'a str>;
+
+trait Parser<'a, Output> {
+    fn parse(&self, input: &'a str) -> ParseResult<'a, Output>;
+}
+
+impl<'a, F, Output> Parser<'a, Output> for F
+where
+    F: Fn(&'a str) -> ParseResult<Output>,
+{
+    fn parse(&self, input: &'a str) -> Result<(&'a str, Output), &'a str> {
+        self(input)
+    }
+}
+
 fn match_literal(expected: &'static str) -> impl Fn(&str) -> Result<(&str, ()), &str> {
     move |input: &str| match input.strip_prefix(expected) {
         Some(next) => Ok((next, ())),
@@ -34,13 +49,13 @@ fn identifier(input: &str) -> Result<(&str, String), &str> {
     Ok((&input[next_index..], matched))
 }
 
-fn pair<P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Fn(&str) -> Result<(&str, (R1, R2)), &str>
+fn pair<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, (R1, R2)>
 where
-    P1: Fn(&str) -> Result<(&str, R1), &str>,
-    P2: Fn(&str) -> Result<(&str, R2), &str>,
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
 {
-    move |input| match parser1(input) {
-        Ok((next_input, result1)) => match parser2(next_input) {
+    move |input| match parser1.parse(input) {
+        Ok((next_input, result1)) => match parser2.parse(next_input) {
             Ok((final_input, result2)) => Ok((final_input, (result1, result2))),
             Err(err) => Err(err),
         },
@@ -48,12 +63,16 @@ where
     }
 }
 
-fn map<P, F, A, B>(parser: P, map_fn: F) -> impl Fn(&str) -> Result<(&str, B), &str>
+fn map<'a, P, F, A, B>(parser: P, map_fn: F) -> impl Parser<'a, B>
 where
-    P: Fn(&str) -> Result<(&str, A), &str>,
+    P: Parser<'a, A>,
     F: Fn(A) -> B,
 {
-    move |input| parser(input).map(|(next_input, result)| (next_input, map_fn(result)))
+    move |input| {
+        parser
+            .parse(input)
+            .map(|(next_input, result)| (next_input, map_fn(result)))
+    }
 }
 
 fn main() {
