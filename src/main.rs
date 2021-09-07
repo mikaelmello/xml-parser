@@ -236,6 +236,14 @@ where
     map(pair(parser1, parser2), |(_left, right)| right)
 }
 
+fn open_element<'a>() -> impl Parser<'a, Element> {
+    left(element_start(), match_literal(">")).map(|(name, attributes)| Element {
+        name,
+        attributes,
+        children: vec![],
+    })
+}
+
 fn main() {
     println!("Hello, world!");
 }
